@@ -1,0 +1,40 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno (MUY IMPORTANTE)
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Build / producción
+dist/
+build/
+
+# Cache
+.cache/
+.tmp/
+
+# Archivos de configuración local
+.vscode/
+.idea/
+
+# Archivos de testing
+coverage/
+
+# Base de datos local (ejemplo)
+*.sqlite
+*.db
+
+# Archivos temporales
+*.tmp
+*.swp
