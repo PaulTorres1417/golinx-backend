@@ -22,17 +22,49 @@ export const searchUser = (query) => {
 }
 
 export const register = async (userData, hashedPassword) => {
-  const { name, username, email } = userData;
-  return pool.query(`INSERT INTO users (name, username, password, email)
-          VALUES ($1, $2, $3, $4)
-          RETURNING id, name, username, email`,
-    [name, username, hashedPassword, email]
+  const { name, email, birthday } = userData;
+  return pool.query(`INSERT INTO users (name, password, email, birthday, email_verified)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING id, name, email`,
+    [name, hashedPassword, email, birthday, false]
   );
 }
 
-export const login = async (email) => {
-  return pool.query(`SELECT * FROM users WHERE email = $1 LIMIT 1`,
+export const searchEmail = async (email) => {
+  return pool.query(`SELECT * FROM users WHERE email = $1`,
     [email]
+  );
+}
+
+export const createToken = async (token, expiresAt, userId) => {
+  return pool.query(`INSERT INTO tokens (token, expires_at, user_id, type)
+          VALUES ($1, $2, $3, $4)`,
+    [token, expiresAt, userId, 'PASSWORD_RESET']
+  );
+}
+
+export const getToken = async (token) => {
+  return pool.query(`SELECT * FROM tokens WHERE token = $1 AND type = $2`,
+    [token, 'PASSWORD_RESET']
+  );
+}
+
+export const updatePassword = async (userId, hashedPassword) => {
+  return pool.query(`UPDATE users SET password = $1 WHERE id = $2`,
+    [hashedPassword, userId]
+  );
+}
+export const confirmEmail = async (userId) => {
+  return await pool.query(
+    'UPDATE users SET email_verified = true WHERE id = $1',
+    [userId]
+  );
+}
+
+export const deleteToken = async (token) => {
+  return await pool.query(
+    'DELETE FROM tokens WHERE token = $1',
+    [token]
   );
 }
 
@@ -43,10 +75,6 @@ export const updateProfile = async (args, context) => {
           RETURNING id, username, email, name, bio, avatar, coverphoto`,
     [name, bio, avatar, coverphoto, context.user.userId]
   );
-}
-
-export const forgotPassword = async (email) => {
-  return pool.query(`SELECT email FROM users WHERE email = $1`, [email]);
 }
 
 export const saveImagePerfil = async (args, context) => {

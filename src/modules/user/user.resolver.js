@@ -29,11 +29,17 @@ export const userResolvers = {
     login: async (_, args, context) => {
       return await userService.login(args, context);
     },
+    verifyEmail: async (_, args, context) => {
+      return await userService.verifyEmail(args, context);
+    },
     updateProfile: async (_, args, context) => {
       return await userService.updateProfile(args, context);
     },
-    forgotPassword: async (_, { email }) => {
-      return await userService.forgotPassword(email);
+    forgotPassword: async (_, args) => {
+      return await userService.forgotPassword(args);
+    },
+    resetPassword: async (_, args) => {
+      return userService.resetPassword(args);
     },
     saveImagePerfil: async (_, args, context) => {
       return await userService.saveImagePerfil(args, context);

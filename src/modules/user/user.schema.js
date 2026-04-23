@@ -6,9 +6,11 @@ export const userTypeDefs = gql`
     type User {
       id: ID!
       name: String!
-      username: String!
+      username: String
       email: String!
       password: String!
+      birthday: String
+      email_verified: Boolean
       bio: String
       avatar: String
       coverphoto: String
@@ -20,6 +22,10 @@ export const userTypeDefs = gql`
     type AuthPayload {
       token: String!
       user: User!
+    }
+
+    type Message {
+      message: String!
     }
 
     type Query {
@@ -35,12 +41,13 @@ export const userTypeDefs = gql`
     }
 
     type Mutation {
-      register(name: String!, username: String!, email: String!, password: String!): User
+      register(name: String!, email: String!, password: String!, birthday: String): Message!
       login(email: String!, password: String!): AuthPayload
       logout: Boolean
       updateProfile(name: String, username: String, email: String, bio: String, avatar: String, coverphoto: String): User
-      forgotPassword(email: String!): Boolean
-      resetPassword(newPassword: String!): Boolean
+      verifyEmail(token: String!): AuthPayload
+      forgotPassword(email: String!): Message!
+      resetPassword(password: String!, token: String!): Message!
       sendFriendRequest(receiverId: ID!): Friend
       respondFriendRequest(requestId: ID!, status: String!): Friend
       removeFriend(friendId: ID!): Boolean

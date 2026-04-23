@@ -1,8 +1,10 @@
 import * as userModel from "./user.model.js";
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
+import { GraphQLError } from 'graphql';
 import { saveRefreshToken, signAccessToken } from "../../auth/auth.service.js";
+import { sendEmail, sendResetPasswordEmail } from "../../config/resend.js";
 dotenv.config();
 
 export const getAllUsers = async (context) => {
@@ -57,7 +59,7 @@ export const getUserById = async (args) => {
 
 export const searchUser = async (args, context) => {
   try {
-    if(!context.user || !context.user.userId) throw new Error('No autorizado');
+    if (!context.user || !context.user.userId) throw new Error('No autorizado');
     const { query } = args;
     const res = await userModel.searchUser(query);
     return res.rows;
@@ -69,39 +71,91 @@ export const searchUser = async (args, context) => {
 
 export const register = async (args) => {
   try {
-    const { name, username, email, password } = args;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const { name, email, birthday, password } = args;
+    const requiredFields = { name, email, password, birthday };
+
+    for (const [field, value] of Object.entries(requiredFields)) {
+      if (!value || (typeof value === 'string' && !value.trim())) {
+        throw new GraphQLError(`${field} is required`, {
+          extensions: { field }
+        });
+      }
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.toLowerCase().trim())) {
+      throw new GraphQLError('Invalid email format', {
+        extensions: { field: 'email' }
+      });
+    }
+    const existingEmail = await userModel.searchEmail(email);
+    if (existingEmail.rows.length > 0) {
+      throw new GraphQLError('Email already in use', {
+        extensions: { field: 'email' }
+      });
+    }
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const token = crypto.randomBytes(20).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
     const res = await userModel.register({
-      name, username, email
+      name, email, birthday
     }, hashedPassword);
-    return res.rows[0];
+    await userModel.createToken(token, expiresAt, res.rows[0].id);
+    const link = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    await sendEmail(email, link);
+
+    return {
+      message: 'User registered successfully. Please check your email to verify your account.',
+    };
   } catch (error) {
-    console.error('Error en register', error);
-    throw new Error('Error en register');
+    console.error('Error in register', error);
+    throw error;
   }
 }
 
 export const login = async (args, context) => {
   try {
     const { email, password } = args;
-    const res = await userModel.login(email);
-    if (res.rows.length === 0) throw new Error('User not found');
-    const user = res.rows[0];
+    if (!email.trim()) {
+      throw new GraphQLError('Email is required', {
+        extensions: { field: 'email' }
+      });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.toLowerCase().trim())) {
+      throw new GraphQLError('Invalid email format', {
+        extensions: { field: 'email' }
+      });
+    }
+    if (!password.trim()) {
+      throw new GraphQLError('Password is required', {
+        extensions: { field: 'password' }
+      })
+    }
+    if (password.length < 6) {
+      throw new GraphQLError('Minimum 6 characters', {
+        extensions: { field: 'password' }
+      });
+    }
+    const result = await userModel.searchEmail(email);
+    if (result.rows.length === 0) {
+      throw new GraphQLError('Invalid credentials');
+    }
+    const user = result.rows[0];
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) throw new Error('Password invalid');
+    if (!valid) throw new GraphQLError('Invalid credentials');
 
     const { password: _, ...userWithoutPassword } = user;
 
-    console.log('context.res:', context.res);
     const accessToken = signAccessToken(user.id);
-    await saveRefreshToken(context.res, user.id); 
+    await saveRefreshToken(context.res, user.id);
 
     return { user: userWithoutPassword, token: accessToken };
 
   } catch (error) {
     console.error('Error en login', error);
-    throw new Error('Error en login');
+    throw error;
   }
 }
 
@@ -113,21 +167,81 @@ export const updateProfile = async (args, context) => {
 
   } catch (error) {
     console.error('Update error:', error);
-    throw new Error('Failed to Update. Please try again.');
+    throw error;
   }
 }
 
-export const forgotPassword = async (email) => {
+export const forgotPassword = async (args) => {
   try {
-    const res = await userModel.forgotPassword(email);
-    if (!res) throw new Error('Credencial invalid');
+    const { email } = args;
+    if (!email.trim()) throw new Error('Email is required');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.toLowerCase().trim())) {
+      throw new Error('Invalid email format');
+    }
+    const res = await userModel.searchEmail(email);
+    if (res.rows.length === 0) throw new Error('Email not found');
+    const token = crypto.randomBytes(20).toString('hex');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
+    const user = res.rows[0];
+    await userModel.createToken(token, expiresAt, user.id)
+    const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    await sendResetPasswordEmail(email, user.name, link);
 
-    //--- logica con resend para enviar correo ---//
-
-    return res.rows[0];
+    return { message: 'Password reset email sent. Please check your inbox.' };
   } catch (error) {
     console.error('Change Password error:', error);
-    throw new Error('Failed to change password. Please try again.');
+    throw error;
+  }
+}
+
+export const resetPassword = async (args) => {
+  try {
+    const { password, token } = args;
+    if (!token) throw new Error('Token invalid');
+    if (!password.trim()) throw new Error('Password is required');
+    if (password.length < 6) throw new Error('Password must be at least 6 characters');
+
+    const res = await userModel.getToken(token);
+    if (res.rows.length === 0) throw new Error('Token invalid');
+    const tokenData = res.rows[0];
+    if (tokenData.expires_at < new Date()) throw new Error('Token expired');
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    await userModel.updatePassword(tokenData.user_id, hashedPassword);
+    await userModel.deleteToken(token);
+
+    return { message: 'Password reset successfully' };
+  } catch (error) {
+    console.error('save image error:', error);
+    throw error;
+  }
+}
+
+export const verifyEmail = async (args, context) => {
+  try {
+    const { token } = args;
+    if (!token) throw new Error('Verification link is invalid');
+
+    const res = await userModel.getToken(token);
+    if (res.rows.length === 0) throw new Error('Invalid or expired verification link');
+
+    const tokenData = res.rows[0];
+    if (tokenData.expires_at < new Date()) throw new Error('This verification link has expired');
+
+    await userModel.confirmEmail(tokenData.user_id);
+    await userModel.deleteToken(token);
+    const data = await userModel.getUserById(tokenData.user_id);
+    const user = data.rows[0];
+    const { password: _, ...userWithoutPassword } = user;
+    const accessToken = signAccessToken(user.id);
+    await saveRefreshToken(context.res, user.id);
+
+    return { user: userWithoutPassword, token: accessToken };
+  } catch (error) {
+    console.error('Error in verifyEmail', error);
+    throw error;
   }
 }
 
