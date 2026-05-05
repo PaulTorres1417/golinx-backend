@@ -12,7 +12,6 @@ export const userResolvers = {
     me: (_:unknown, __: unknown, context: Context) => {
       return userService.user(context);
     },
-    // JS tenía dos claves `user`; en runtime solo sobrevive la última (getUserById).
     user: (_: unknown, args: { id: string }) => {
       return userService.getUserById(args);
     },

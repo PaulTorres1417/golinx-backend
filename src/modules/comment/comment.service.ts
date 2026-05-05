@@ -18,10 +18,9 @@ export const getSavedComment = withAuth(
 
 export const commentsByPost = withAuth(
   withErrorHandling(
-    async (args: { postId: string, after: number, first: number }) => {
+    async (args: { postId: string, after?: string | null, first: number }) => {
       const { first } = args;
       const res = await commentModel.commentsByPost(args);
-
       const hasNextPage = res.rows.length > first;
       const edges = res.rows.slice(0, first).map((comment) => ({
         node: {
@@ -47,7 +46,7 @@ export const commentsByPost = withAuth(
 
 export const repliesByComment = withAuth(
   withErrorHandling(
-    async (args: { commentId: string, after: number, first: number }) => {
+    async (args: { commentId: string, after?: string | null, first: number }) => {
       const { first } = args;
       const res = await commentModel.repliesByComment(args);
       const hasNextPage = res.rows.length > first;
@@ -103,7 +102,7 @@ export const removeSavedComment = withAuth(
 
 export const createComment = withAuth(
   withErrorHandling(
-    async (args: { postId: string, content: string, parentCommentId: string }, context: Context) => {
+    async (args: { postId: string, content: string, parentCommentId?: string | null }, context: Context) => {
       const { postId: id, content, parentCommentId } = args;
       let res: QueryResult;
       if (parentCommentId) {

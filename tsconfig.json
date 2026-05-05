@@ -5,6 +5,8 @@
     "moduleResolution": "bundler",
     "outDir": "./dist",
     "rootDir": "./src",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
     "strict": true,
     "noImplicitAny": false,
     "noUnusedParameters": false,
@@ -14,7 +16,6 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }

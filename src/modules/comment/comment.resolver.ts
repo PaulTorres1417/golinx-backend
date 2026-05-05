@@ -17,7 +17,7 @@ export const commentResolvers = {
 
     repliesByComment: (
       _: unknown,
-      args: { commentId: string; first?: number | null; after?: string | null },
+      args: { commentId: string; first: number; after?: string | null },
       context: Context
     ) => {
       return commentService.repliesByComment(args, context);

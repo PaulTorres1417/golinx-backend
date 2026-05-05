@@ -1,10 +1,19 @@
+// vitest.config.ts
 import { defineConfig } from 'vitest/config';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { fileURLToPath, URL } from 'url';
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  resolve: {
+    alias: {
+      // Esto le enseña a Vitest a entender el alias '@/' como hicimos en Vite
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   test: {
-    environment: 'node',
-    include: ['**/*.test.ts'],
+    globals: true,
+    environment: 'jsdom',
+    // Eliminamos la línea de setupFiles para que no dé error.
+    // setupFiles: './src/setupTests.ts',
+    css: true,
   },
 });

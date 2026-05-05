@@ -12,7 +12,7 @@ export const getSavedComment = async (context: Context) => {
           `, [context.user?.userId]);
 }
 
-export const commentsByPost = async (args: { postId: string, after: number, first: number }) => {
+export const commentsByPost = async (args: { postId: string, after?: string | null, first: number }) => {
   const { postId, after, first } = args;
   let query = `SELECT * FROM comments WHERE post_id = $1 AND parent_id IS NULL`;
   const values: (string | number | Date)[] = [postId];
@@ -27,7 +27,7 @@ export const commentsByPost = async (args: { postId: string, after: number, firs
   return pool.query(query, values);
 };
 
-export const repliesByComment = async (args: { commentId: string, after: number, first: number }) => {
+export const repliesByComment = async (args: { commentId: string, after?: string | null, first: number }) => {
   const { commentId, after, first } = args;
   let query = `SELECT * FROM comments WHERE parent_id = $1`;
   const values: (string | number | Date)[] = [commentId];
@@ -50,7 +50,8 @@ export const removeSavedComment = async (id: string, context: Context) => {
           comment_id = $1 AND user_id = $2`, [id, context.user?.userId]);
 }
 
-export const insertCommentByParentId = async (args: { postId: string, content: string, parentCommentId: string }, context: Context) => {
+export const insertCommentByParentId = async (args: { 
+  postId: string, content: string, parentCommentId?: string | null }, context: Context) => {
   const { postId, parentCommentId, content } = args;
   return pool.query(`INSERT INTO comments (post_id, parent_id, content, user_id)
          VALUES ($1, $2, $3, $4) RETURNING id, content, user_id, created_at`,
